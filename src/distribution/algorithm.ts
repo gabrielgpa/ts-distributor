@@ -6,6 +6,7 @@ export interface ProjectAllocation {
   id: string;
   label: string;
   percentage: number; // within the cost center
+  dayPercentages?: Partial<Record<DayCode, number>>; // optional day profile for the project
   active?: boolean;
 }
 
@@ -202,21 +203,69 @@ function createRng(seed: number): () => number {
   };
 }
 
+function normalizeDayWeights(
+  dayPercentages: Partial<Record<DayCode, number>> | undefined,
+  workingDays: DayCode[]
+): Record<DayCode, number> {
+  const safeDayCount = Math.max(1, workingDays.length);
+  const uniformWeight = 1 / safeDayCount;
+  const rawByDay: Record<DayCode, number> = {} as Record<DayCode, number>;
+  let total = 0;
+
+  workingDays.forEach((day) => {
+    const raw = Math.max(0, dayPercentages?.[day] ?? 0);
+    rawByDay[day] = raw;
+    total += raw;
+  });
+
+  const normalized: Record<DayCode, number> = {} as Record<DayCode, number>;
+  if (total <= EPS) {
+    workingDays.forEach((day) => {
+      normalized[day] = uniformWeight;
+    });
+    return normalized;
+  }
+
+  workingDays.forEach((day) => {
+    normalized[day] = rawByDay[day] / total;
+  });
+
+  return normalized;
+}
+
+function buildProjectDayWeights(
+  centers: CostCenter[],
+  workingDays: DayCode[]
+): Record<string, Record<DayCode, number>> {
+  const weights: Record<string, Record<DayCode, number>> = {};
+  centers.forEach((center) => {
+    center.projects.forEach((project) => {
+      weights[project.id] = normalizeDayWeights(project.dayPercentages, workingDays);
+    });
+  });
+  return weights;
+}
+
 function distributeDaily(
   weeklyHours: Record<string, number>,
   week: WeekConfig,
-  rng: () => number
+  rng: () => number,
+  dayWeightsByProject: Record<string, Record<DayCode, number>>
 ): { schedule: DailySchedule[]; drift: number } {
   const remaining: Record<string, number> = { ...weeklyHours };
   const schedule: DailySchedule[] = [];
   const dailyTarget = week.hoursPerDay ?? week.totalHours / week.workingDays.length;
   const expectedTotal = +(dailyTarget * week.workingDays.length).toFixed(6);
+  const uniformWeight = 1 / Math.max(1, week.workingDays.length);
 
   week.workingDays.forEach((day, idx) => {
     const activeProjects = Object.entries(remaining)
       .filter(([, hrs]) => hrs > EPS)
-      .map(([id, hrs]) => ({ id, hrs, jitter: rng() * 0.01 }))
-      .sort((a, b) => b.hrs + b.jitter - (a.hrs + a.jitter))
+      .map(([id, hrs]) => {
+        const weight = dayWeightsByProject[id]?.[day] ?? uniformWeight;
+        return { id, hrs, weight, jitter: rng() * 0.01 };
+      })
+      .sort((a, b) => b.hrs * b.weight + b.jitter - (a.hrs * a.weight + a.jitter))
       .map((i) => i.id);
 
     const rotated = rotate(activeProjects, Math.floor(rng() * (week.cooldown + 1)) + idx * week.cooldown);
@@ -239,9 +288,19 @@ function distributeDaily(
     }
 
     let dayEntries: Record<string, number> = {};
+    const weightedRemaining = chosen.reduce((s, id) => {
+      const weight = dayWeightsByProject[id]?.[day] ?? uniformWeight;
+      return s + (remaining[id] ?? 0) * weight;
+    }, 0);
     const totalRemaining = chosen.reduce((s, id) => s + (remaining[id] ?? 0), 0);
     chosen.forEach((id) => {
-      const share = totalRemaining > 0 ? (remaining[id] / totalRemaining) * dailyTarget : 0;
+      const weight = dayWeightsByProject[id]?.[day] ?? uniformWeight;
+      const shareBase = weightedRemaining > EPS
+        ? ((remaining[id] ?? 0) * weight) / weightedRemaining
+        : totalRemaining > EPS
+          ? (remaining[id] ?? 0) / totalRemaining
+          : 0;
+      const share = shareBase * dailyTarget;
       let alloc = roundToStep(share, week.roundingStep);
       if (alloc > 0 && alloc < week.minChunk && remaining[id] >= week.minChunk) {
         alloc = week.minChunk;
@@ -354,7 +413,13 @@ export function distributeWork(request: DistributionRequest): DistributionResult
     effectiveWeek.roundingStep
   );
 
-  const { schedule, drift: dailyDrift } = distributeDaily(weeklyHours, effectiveWeek, rng);
+  const dayWeightsByProject = buildProjectDayWeights(centers, effectiveWeek.workingDays);
+  const { schedule, drift: dailyDrift } = distributeDaily(
+    weeklyHours,
+    effectiveWeek,
+    rng,
+    dayWeightsByProject
+  );
 
   return {
     weeklyTotals: weeklyHours,

@@ -60,6 +60,45 @@ describe('distribution algorithm', () => {
     expect(total).toBeCloseTo(32.5, 2);
   });
 
+  it('respects project day profile as a distribution preference', () => {
+    const byDay = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0 };
+    for (let seed = 1; seed <= 100; seed += 1) {
+      const centers = cloneCenters();
+      const targetProject = centers[0].projects.find((project) => project.id === 'cc1_p1');
+      if (!targetProject) {
+        throw new Error('Missing test project cc1_p1');
+      }
+      targetProject.dayPercentages = {
+        mon: 100,
+        tue: 0,
+        wed: 0,
+        thu: 0,
+        fri: 0,
+      };
+      const result = distributeWork(
+        buildRequest({
+          centers,
+          randomSeed: seed,
+        })
+      );
+      const monday = result.dailySchedule.find((d) => d.day === 'mon');
+      const tuesday = result.dailySchedule.find((d) => d.day === 'tue');
+      const wednesday = result.dailySchedule.find((d) => d.day === 'wed');
+      const thursday = result.dailySchedule.find((d) => d.day === 'thu');
+      const friday = result.dailySchedule.find((d) => d.day === 'fri');
+      byDay.mon += monday?.entries.find((e) => e.projectId === 'cc1_p1')?.hours ?? 0;
+      byDay.tue += tuesday?.entries.find((e) => e.projectId === 'cc1_p1')?.hours ?? 0;
+      byDay.wed += wednesday?.entries.find((e) => e.projectId === 'cc1_p1')?.hours ?? 0;
+      byDay.thu += thursday?.entries.find((e) => e.projectId === 'cc1_p1')?.hours ?? 0;
+      byDay.fri += friday?.entries.find((e) => e.projectId === 'cc1_p1')?.hours ?? 0;
+    }
+
+    expect(byDay.mon).toBeGreaterThan(byDay.tue);
+    expect(byDay.mon).toBeGreaterThan(byDay.wed);
+    expect(byDay.mon).toBeGreaterThan(byDay.thu);
+    expect(byDay.mon).toBeGreaterThan(byDay.fri);
+  });
+
   it('applies rounding step', () => {
     const result = distributeWork(buildRequest());
     Object.values(result.weeklyTotals).forEach((h) => {

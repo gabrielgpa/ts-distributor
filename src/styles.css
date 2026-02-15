@@ -293,11 +293,40 @@ button.icon {
   gap: 10px;
 }
 
+.project-editor {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(228, 217, 204, 0.7);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+}
+
 .project-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 160px 38px;
   gap: 10px;
   align-items: end;
+}
+
+.project-day-profile {
+  display: grid;
+  gap: 6px;
+}
+
+.project-day-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+}
+
+.project-day-field {
+  gap: 4px;
+}
+
+.project-day-field span {
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .project-actions {

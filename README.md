@@ -79,7 +79,12 @@ S3_BUCKET=my-bucket-name CLOUDFRONT_DISTRIBUTION_ID=E123ABC456 npm run deploy:s3
       "label": "Center 1",
       "percentage": 50,
       "projects": [
-        { "id": "cc1_p1", "label": "Project 1", "percentage": 60 },
+        {
+          "id": "cc1_p1",
+          "label": "Project 1",
+          "percentage": 60,
+          "dayPercentages": { "mon": 50, "tue": 30, "wed": 20, "thu": 0, "fri": 0 }
+        },
         { "id": "cc1_p2", "label": "Project 2", "percentage": 40 }
       ]
     }
@@ -98,6 +103,10 @@ Response:
 - `weeklyTotals`: weekly hours per project
 - `dailySchedule`: daily distribution (day, entries, total)
 - `diagnostics`: normalization and drift
+
+Notes:
+- `dayPercentages` is optional per project and acts as a day-of-week preference profile.
+- If omitted or all zeros, the project uses a uniform profile across working days.
 
 ## Defaults and sample data
 - Default centers: three centers with two projects each.

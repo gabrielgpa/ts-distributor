@@ -42,6 +42,8 @@ type MessageKey =
   | 'projectName'
   | 'projectDefault'
   | 'projectPercent'
+  | 'projectDayProfile'
+  | 'projectDayHint'
   | 'totalCenters'
   | 'totalProjects'
   | 'target100'
@@ -93,6 +95,8 @@ const MESSAGES: Record<Language, Record<MessageKey, string>> = {
     projectName: 'Project name',
     projectDefault: 'Project',
     projectPercent: '% of center',
+    projectDayProfile: 'Day profile (%)',
+    projectDayHint: 'Optional. If empty, distribution remains automatic.',
     totalCenters: 'Centers total',
     totalProjects: 'Projects total',
     target100: 'Target 100%',
@@ -143,6 +147,8 @@ const MESSAGES: Record<Language, Record<MessageKey, string>> = {
     projectName: 'Nome do projeto',
     projectDefault: 'Projeto',
     projectPercent: '% do centro',
+    projectDayProfile: 'Perfil por dia (%)',
+    projectDayHint: 'Opcional. Se vazio, a distribuição continua automática.',
     totalCenters: 'Total dos centros',
     totalProjects: 'Total de projetos',
     target100: 'Alvo 100%',
@@ -193,6 +199,8 @@ const MESSAGES: Record<Language, Record<MessageKey, string>> = {
     projectName: 'Nom du projet',
     projectDefault: 'Projet',
     projectPercent: '% du centre',
+    projectDayProfile: 'Profil par jour (%)',
+    projectDayHint: 'Optionnel. Si vide, la distribution reste automatique.',
     totalCenters: 'Total des centres',
     totalProjects: 'Total des projets',
     target100: 'Cible 100%',
@@ -381,6 +389,32 @@ function App() {
           projects: center.projects.map((project) =>
             project.id === projectId ? { ...project, ...updates } : project
           ),
+        };
+      })
+    );
+  };
+
+  const updateProjectDayPercentage = (
+    centerId: string,
+    projectId: string,
+    day: DayCode,
+    value: number
+  ) => {
+    setCenters((prev) =>
+      prev.map((center) => {
+        if (center.id !== centerId) return center;
+        return {
+          ...center,
+          projects: center.projects.map((project) => {
+            if (project.id !== projectId) return project;
+            return {
+              ...project,
+              dayPercentages: {
+                ...(project.dayPercentages ?? {}),
+                [day]: value,
+              },
+            };
+          }),
         };
       })
     );
@@ -725,36 +759,63 @@ function App() {
 
                     <div className="project-list">
                       {center.projects.map((project) => (
-                        <div key={project.id} className="project-row">
-                          <label className="field">
-                            <span>{t('projectName')}</span>
-                            <input
-                              type="text"
-                              value={project.label}
-                              onChange={(e) =>
-                                updateProject(center.id, project.id, { label: e.target.value })
-                              }
-                            />
-                          </label>
-                          <label className="field">
-                            <span>{t('projectPercent')}</span>
-                            <input
-                              type="number"
-                              step={0.5}
-                              value={project.percentage}
-                              onChange={(e) =>
-                                updateProject(center.id, project.id, { percentage: Number(e.target.value) })
-                              }
-                            />
-                          </label>
-                          <button
-                            className="icon"
-                            onClick={() => removeProject(center.id, project.id)}
-                            aria-label={t('removeProject')}
-                            disabled={center.projects.length <= 1}
-                          >
-                            x
-                          </button>
+                        <div key={project.id} className="project-editor">
+                          <div className="project-row">
+                            <label className="field">
+                              <span>{t('projectName')}</span>
+                              <input
+                                type="text"
+                                value={project.label}
+                                onChange={(e) =>
+                                  updateProject(center.id, project.id, { label: e.target.value })
+                                }
+                              />
+                            </label>
+                            <label className="field">
+                              <span>{t('projectPercent')}</span>
+                              <input
+                                type="number"
+                                step={0.5}
+                                value={project.percentage}
+                                onChange={(e) =>
+                                  updateProject(center.id, project.id, { percentage: Number(e.target.value) })
+                                }
+                              />
+                            </label>
+                            <button
+                              className="icon"
+                              onClick={() => removeProject(center.id, project.id)}
+                              aria-label={t('removeProject')}
+                              disabled={center.projects.length <= 1}
+                            >
+                              x
+                            </button>
+                          </div>
+                          <div className="project-day-profile">
+                            <div className="muted">{t('projectDayProfile')}</div>
+                            <div className="project-day-grid">
+                              {days.map((d) => (
+                                <label key={`${project.id}_${d.code}`} className="field project-day-field">
+                                  <span>{d.label} %</span>
+                                  <input
+                                    type="number"
+                                    step={5}
+                                    min={0}
+                                    value={project.dayPercentages?.[d.code] ?? 0}
+                                    onChange={(e) =>
+                                      updateProjectDayPercentage(
+                                        center.id,
+                                        project.id,
+                                        d.code,
+                                        Number(e.target.value)
+                                      )
+                                    }
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            <div className="muted">{t('projectDayHint')}</div>
+                          </div>
                         </div>
                       ))}
                     </div>
